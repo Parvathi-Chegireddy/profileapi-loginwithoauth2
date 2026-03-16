@@ -20,15 +20,6 @@ public class ProfileController {
         this.jwtService = jwtService;
     }
 
-    /**
-     * POST /api/profile/token
-     *
-     * Called internally by auth-service (9090) and oauth2-service (9092).
-     * Returns:
-     *   - accessToken in JSON body  (15 min, stored in React memory)
-     *   - refreshToken as HttpOnly cookie (7 days, JS cannot read it)
-     *   - profile fields in JSON body
-     */
     @PostMapping("/token")
     public ResponseEntity<Map<String, Object>> issueToken(
             @RequestBody ProfileRequest req,
@@ -45,15 +36,11 @@ public class ProfileController {
         String displayName = nvl(req.getDisplayName(), req.getUsername());
         String avatar      = nvl(req.getAvatar(),      "");
 
-        // Issue access token — goes in response body
         String accessToken = jwtService.issueAccessToken(
                 username, role, provider, loginMethod, email, displayName, avatar);
 
-        // Issue refresh token — set as HttpOnly cookie
         String refreshToken = jwtService.issueRefreshToken(username);
         setRefreshTokenCookie(response, refreshToken);
-
-        // Build response body — access token + profile info, NO refresh token
         Map<String, Object> body = new HashMap<>();
         body.put("accessToken",  accessToken);
         body.put("username",     username);
@@ -70,13 +57,6 @@ public class ProfileController {
         return ResponseEntity.ok(body);
     }
 
-    /**
-     * POST /api/profile/refresh
-     *
-     * Called by React when access token expires (or on page load to restore session).
-     * Reads refresh token from HttpOnly cookie — JS never touches it.
-     * Returns a new access token if refresh token is valid.
-     */
     @PostMapping("/refresh")
     public ResponseEntity<Map<String, Object>> refresh(
             HttpServletRequest request,
@@ -100,15 +80,12 @@ public class ProfileController {
         var claims = jwtService.validateAndGetClaims(refreshToken);
         String username = claims.getSubject();
 
-        // Re-issue a fresh access token with same claims
-        // In a real app you'd reload user from DB here to get latest role/email
         String newAccessToken = jwtService.issueAccessToken(
                 username,
                 "", // will be re-fetched — for demo we pass empty
                 "local", "regular", "", username, ""
         );
-
-        // Also rotate the refresh token — new cookie, old one invalidated
+ 
         String newRefreshToken = jwtService.issueRefreshToken(username);
         setRefreshTokenCookie(response, newRefreshToken);
 
@@ -120,24 +97,12 @@ public class ProfileController {
         return ResponseEntity.ok(body);
     }
 
-    /**
-     * POST /api/profile/logout
-     *
-     * Clears the refresh token cookie.
-     * Access token expires naturally (15 min max).
-     */
     @PostMapping("/logout")
     public ResponseEntity<Map<String, String>> logout(HttpServletResponse response) {
         clearRefreshTokenCookie(response);
         return ResponseEntity.ok(Map.of("message", "Logged out successfully"));
     }
 
-    /**
-     * GET /api/profile/validate
-     *
-     * Validates an access token.
-     * Called by gateway JwtAuthFilter on protected routes.
-     */
     @GetMapping("/validate")
     public ResponseEntity<Map<String, Object>> validate(
             @RequestHeader("Authorization") String authHeader) {
@@ -167,15 +132,12 @@ public class ProfileController {
         return ResponseEntity.ok(body);
     }
 
-    /* ── Cookie helpers ─────────────────────────────────── */
-
     private void setRefreshTokenCookie(HttpServletResponse response, String token) {
         Cookie cookie = new Cookie("refreshToken", token);
         cookie.setHttpOnly(true);   // JS cannot read this
         cookie.setSecure(false);    // Set true in production (HTTPS only)
         cookie.setPath("/api/profile/refresh"); // Only sent to refresh endpoint
         cookie.setMaxAge((int)(jwtService.getRefreshTokenExpiryMs() / 1000));
-        // SameSite=Strict via header — Cookie API doesn't support it directly
         response.addCookie(cookie);
         response.addHeader("Set-Cookie",
                 "refreshToken=" + token
@@ -199,8 +161,6 @@ public class ProfileController {
                 .findFirst()
                 .orElse(null);
     }
-
-    /* ── Label helpers ──────────────────────────────────── */
 
     private String buildRoleLabel(ProfileRequest req) {
         if ("ROLE_ADMIN".equals(req.getRole())) return "ADMIN";
