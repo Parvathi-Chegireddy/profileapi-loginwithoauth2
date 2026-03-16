@@ -1,0 +1,29 @@
+spring:
+  application:
+    name: profile
+
+  # Spring Boot 4.x — correct exclusion syntax
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration
+   #   - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
+    #  - org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration
+      # Suppresses the "generated security password" warning —
+      # profile service has no users, the password is never used
+     # - org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
+
+server:
+  port: 9093
+
+# JWT config — ONLY the profile service knows this secret
+# Must be at least 32 chars for HS256
+jwt:
+  # Access token — short lived, used for API calls
+  # Secret loaded from environment variable JWT_SECRET
+  # Set it before starting: export JWT_SECRET=your-256-bit-random-secret
+  # For Windows: set JWT_SECRET=your-256-bit-random-secret
+  # Fallback value is for local development ONLY — never use in production
+  secret: ${JWT_SECRET:spantag-super-secret-jwt-key-2026-minimum-32chars}
+  access-token-expiry-ms: 900000      # 15 minutes
+  refresh-token-expiry-ms: 604800000  # 7 days
+#expiration-ms: 3600000   # 1 hour
